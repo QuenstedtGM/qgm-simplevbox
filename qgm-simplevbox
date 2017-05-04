@@ -62,13 +62,18 @@ echo "Neue Maschine erzeugen: $VM ..."
 # Virtuelle Maschine erzeugen
 VBoxManage createvm --name $VM --ostype $OSTYPE --register
 
-# IDE Controller hinzufügen
-VBoxManage storagectl $VM --name "IDE Controller" --add ide
+if [ x$DISKCTRL == "xSATA" ]; then 
+    # SATA Controller
+    VBoxManage storagectl $VM --name "Disk Controller" --add sata --controller IntelAHCI
+else
+    # IDE Controller
+    VBoxManage storagectl $VM --name "Disk Controller" --add ide
+fi
 
 echo "30"
 echo "Basisfestplatte anschließen..."
 # Festplatten anschließen
-VBoxManage storageattach $VM --storagectl "IDE Controller" --port 0 --device 0 --type hdd --medium $BASEDISK
+VBoxManage storageattach $VM --storagectl "Disk Controller" --port 0 --device 0 --type hdd --medium $BASEDISK
 
 #echo "40"
 #echo "Snapshot machen ..."
@@ -77,7 +82,7 @@ VBoxManage storageattach $VM --storagectl "IDE Controller" --port 0 --device 0 -
 
 echo "60"
 echo "Snapshotfestplatte anschließen..."
-VBoxManage storageattach $VM --storagectl "IDE Controller" --port 0 --device 0 --type hdd --medium $SNAPDISK
+VBoxManage storageattach $VM --storagectl "Disk Controller" --port 0 --device 0 --type hdd --medium $SNAPDISK
 echo "45"
 echo "Snapshot machen ..."
 VBoxManage snapshot $VM take "Snapimage"
