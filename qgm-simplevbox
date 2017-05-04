@@ -1,0 +1,123 @@
+#!/bin/bash
+
+# Globale Konfiguration
+. /etc/qgm-simplevbox/qgm-simplevbox.conf || exit 1
+
+# Maschinenkonfiguration
+. $SimplevboxConfigDir/$1.conf || exit 1
+
+# Set Machine Directory
+VBoxManage setproperty machinefolder ${HOME}/.virtualbox
+
+# Are there any running vms?
+NUMRUN=$(VBoxManage list runningvms | wc -l)
+
+if [ $NUMRUN -gt 0 ]; then 
+	echo "There are $NUMRUN running VMs:"
+	VBoxManage list runningvms
+	echo "Doing nothing."
+	exit 0
+fi
+
+# Create Selector
+colstring="TRUE active.vdi  Letzter_Zustand_der_VM"
+for diffimg in ${SNAPBASE}/*.desc; do
+
+        desc=$(head -n 1 $diffimg | sed -e "s/ /_/g")
+
+        diffimg=${diffimg%.desc};
+        diffimg=${diffimg##*/};
+
+        colstring=" $colstring FALSE $diffimg.vdi $desc"
+done
+
+imgtostart=$(zenity --title="Imageauswahl" --list --radiolist --column="Auswahl" --column="Name" --width=460 --height=340 --column="Beschreibung" $colstring)
+
+if [ x$imgtostart == "x" ]; then
+        exit 0
+fi
+
+# Start Progressbar
+(
+if [ "x$imgtostart" != "xactive.vdi" ]; then 
+        echo "5"
+        echo "Snapshot kopieren..."
+        cp ${SNAPBASE}/$imgtostart ${SNAPBASE}/active.vdi
+fi
+
+
+# Virtuelle Maschine deregistrieren und 
+# Konfiguration im Userhome löschen. 
+# Fehlermedungen ignorieren...
+echo "10"
+echo "Alte Maschine löschen..."
+mkdir -p $HOME/.virtualbox
+VBoxManage unregistervm $VM > /dev/null 2>&1
+rm -rf ~/.virtualbox/"$VM"/ > /dev/null 2>&1
+
+
+
+echo "20"
+echo "Neue Maschine erzeugen: $VM ..."
+# Virtuelle Maschine erzeugen
+VBoxManage createvm --name $VM --ostype $OSTYPE --register
+
+# IDE Controller hinzufügen
+VBoxManage storagectl $VM --name "IDE Controller" --add ide
+
+echo "30"
+echo "Basisfestplatte anschließen..."
+# Festplatten anschließen
+VBoxManage storageattach $VM --storagectl "IDE Controller" --port 0 --device 0 --type hdd --medium $BASEDISK
+
+#echo "40"
+#echo "Snapshot machen ..."
+#VBoxManage snapshot $VM take "Baseimage"
+
+
+echo "60"
+echo "Snapshotfestplatte anschließen..."
+VBoxManage storageattach $VM --storagectl "IDE Controller" --port 0 --device 0 --type hdd --medium $SNAPDISK
+echo "45"
+echo "Snapshot machen ..."
+VBoxManage snapshot $VM take "Snapimage"
+
+echo "70"
+echo "Einstellungen der Maschine festlegen..."
+# Einstellungen
+# IOAPIC on
+VBoxManage modifyvm $VM --ioapic on
+# Boot Device nur Disk
+VBoxManage modifyvm $VM --boot1 disk --boot2 none --boot3 none --boot4 none
+# Speicher
+VBoxManage modifyvm $VM --memory $RAM --vram $VRAM
+# Netzwerk aus
+VBoxManage modifyvm $VM --nic1 none
+# USB an
+VBoxManage modifyvm $VM --usb on
+VBoxManage modifyvm $VM --usbehci on
+#VBoxManage modifyvm $VM --usbxhci on
+# 2d Beschl an
+VBoxManage modifyvm $VM --accelerate2dvideo on
+
+echo "85"
+echo "Gemeinsame Ordner einrichten..."
+# Shared Folders
+VBoxManage sharedfolder add $VM --name "USB-Sticks" --hostpath "/media" --automount
+VBoxManage sharedfolder add $VM --name "Home" --hostpath $HOME --automount
+
+echo "100"
+echo "maschine starten..."
+
+)  | zenity     --progress --title "Virtuelles Windows starten..." \
+                --text "Virtuelle Maschine vorbereiten..." \
+                --auto-close \
+                --width=700 \
+                --height=120 \
+                --percentage=0
+# End Progressbar
+
+
+VBoxManage startvm $VM
+
+

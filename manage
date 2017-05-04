@@ -1,0 +1,28 @@
+#!/bin/bash
+
+action=$1
+
+BINDIR="/usr/bin"
+CONFDIR="/etc/qgm-simplevbox"
+
+case $action in 
+	install)
+		echo "Installing..."
+		echo "   Copying qgm-simplevbox to $BINDIR/qgm-simplevbox"
+		cp qgm-simplevbox $BINDIR/qgm-simplevbox
+		if [ ! -f $CONFDIR/qgm-simplevbox.conf ]; then 
+			echo "   $CONFDIR/qgm-simplevbox.conf doesnt exist."
+			echo "   Copying global config file."
+			mkdir -p $CONFDIR
+			cp qgm-simplevbox.conf $CONFDIR/qgm-simplevbox.conf
+		else
+			echo "   $CONFDIR/qgm-simplevbox.conf exists."
+			echo "   NOT copying global config file."
+		fi
+
+	;;
+	uninstall)
+		echo "Uninstalling.."
+
+	;;
+esac
